@@ -78,7 +78,7 @@ def train_model(
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
-        shuffle=shuffle,
+        shuffle=shuffle,  # optional; main order is controlled at dataset level
         collate_fn=lambda b: collate_batch(b, device),
     )
 
@@ -154,7 +154,10 @@ def main():
     parser.add_argument(
         "--shuffle",
         action="store_true",
-        help="If set, DataLoader will shuffle batches (ignores index order).",
+        help=(
+            "If set, shuffle the dataset order before training "
+            "(breaks transcript order; use for independent models)."
+        ),
     )
     parser.add_argument("--seed", type=int, default=0)
 
@@ -171,11 +174,19 @@ def main():
 
     ds = ds.map(fix_tokens)
 
-    # Apply subset prefix (in index order)
+    # First, define the canonical transcript order by the 'index' column.
+    if "index" in ds.column_names:
+        ds = ds.sort("index")
+
+    # Now, if shuffle=True, we BREAK that order for independence.
+    if args.shuffle:
+        print(f"Shuffling dataset order with seed={args.seed} ...")
+        ds = ds.shuffle(seed=args.seed)
+
+    # Apply subset prefix (in *current* order)
     if args.subset_frac < 1.0:
         subset_len = int(len(ds) * args.subset_frac)
         print(f"Using first {subset_len}/{len(ds)} sequences (prefix) ...")
-        # assumes ds is already in the desired order
         ds = ds.select(range(subset_len))
     else:
         print(f"Using full dataset: {len(ds)} sequences.")
@@ -210,7 +221,7 @@ def main():
         num_epochs=args.epochs,
         batch_size=args.batch_size,
         lr=args.lr,
-        shuffle=args.shuffle,
+        shuffle=False,  # dataset order already decided; keep DataLoader deterministic
     )
 
 

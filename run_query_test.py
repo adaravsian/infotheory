@@ -58,16 +58,33 @@ def load_transcript(transcript_name_or_path):
 
 
 def phi_qr(args, document_index, metric_fn):
-  phi = BasicStatistic(document_index, metric_fn, reference_path=args.ref_model)
-  return phi(args.model)
+    # If the user passed a reference model, use it.
+    if args.ref_model is not None and args.ref_model.lower() != "none":
+        phi = BasicStatistic(
+            document_index,
+            metric_fn,
+            n=args.n_samples,
+            reference_path=args.ref_model
+        )
+    else:
+        # No reference model: pure φ_query
+        phi = BasicStatistic(
+            document_index,
+            metric_fn,
+            n=args.n_samples,
+            reference_path=None
+        )
+    return phi(args.model)
+
 
 
 if __name__ == '__main__':  
   parser = argparse.ArgumentParser()
-  parser.add_argument("--model", type=str,
-                      default="EleutherAI/pythia-6.9b-deduped")
-  parser.add_argument("--ref_model", type=str,
-                      default="EleutherAI/pythia-6.9b")
+  parser.add_argument("--model", type=str)
+  parser.add_argument("--ref_model", type=str, default=None,
+                    help="Optional reference model for φ_query^ref. "
+                         "Use --ref_model none to disable.")
+
   parser.add_argument("--n_samples", type=int, default=100000)
   parser.add_argument("--transcript", type=str,
                       default="hij/sequence_samples/pythia_deduped_100k")
@@ -76,6 +93,12 @@ if __name__ == '__main__':
   args = parser.parse_args()
 
   transcript = load_transcript(args.transcript)
+
+  print("Loaded transcript %s" % args.transcript)
+  print("Using model: %s" % args.model)
+  print("Using reference model: %s" % args.ref_model)
+  print("Using %d samples." % args.n_samples)
+
 
   raw_tokens = list(transcript["tokens"])[:args.n_samples]
   # HF datasets may store token ids as floats; cast back to ints for decoding.
